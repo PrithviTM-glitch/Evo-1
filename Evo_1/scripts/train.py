@@ -126,11 +126,15 @@ def init_wandb(config: EvoConfig, accelerator: Accelerator):
 
 def init_swanlab(config: EvoConfig, accelerator: Accelerator):
 
+    if config.disable_wandb:
+        return
+
     if accelerator is None or accelerator.is_main_process:
         swanlab.init(
             project=config.wandb_project,
             name=config.run_name,
-            config=config.to_dict()
+            config=config.to_dict(),
+            mode='local',
         )
 
 def prepare_dataset(config: EvoConfig) -> torch.utils.data.Dataset:
@@ -261,7 +265,8 @@ def log_training_step(step, loss, total_norm, momentum_norm, scheduler, dataload
             wandb_log_dict["global_max_reserved_gb"] = global_max_reserved_gb
 
         wandb.log(wandb_log_dict)
-        swanlab.log(wandb_log_dict)
+        if not config.disable_wandb:
+            swanlab.log(wandb_log_dict)
 
 def save_checkpoint(save_dir, step, model_engine, loss, accelerator, optimizer=None, scheduler=None, config: EvoConfig=None, norm_stats=None):
     tag = f"step_{step}"

@@ -1,0 +1,16 @@
+# do not change max_action_dim, max_state_dim, max_views
+max_action_dim: 24
+max_state_dim: 24
+max_views: 3
+normalization_type: bounds
+datasets_manifest: metaworld_normstats.pkl
+
+decoder_cache_size: 16
+cache_shard_size_bytes: 268435456
+
+data_groups:
+  metaworld_sawyer:
+    Evo1_MetaWorld:
+      path: /home/tmprithvi/Evo1_training_dataset/Metaworld
+      view_map:
+        image_1: observation.images.image
