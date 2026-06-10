@@ -123,3 +123,166 @@ wandb sync /home/tmprithvi/baseline/wandb/offline-run-*
 
 3. **Accelerate warnings** — `--mixed_precision` and `--dynamo_backend` default to `no`.
    These are just warnings; run `accelerate config` once to suppress them permanently.
+
+---
+
+## Stage 2 — MetaWorld Fine-tuning (VLM + Action Head)
+
+### Overview
+
+Continues from a Stage 1 checkpoint, now unfreezing the full VLM backbone (InternVL3-1B) in
+addition to the action head. Uses `--resume_pretrain` to load Stage 1 weights as an
+initialization point while resetting the step counter and optimizer to zero (fresh warmup).
+
+### Environment
+
+Same as Stage 1 (see above).
+
+### Launch Command
+
+Run from `/home/tmprithvi/Evo-1/Evo_1` (recommended: inside a `tmux` session):
+
+```bash
+accelerate launch \
+  --num_processes 1 \
+  --num_machines 1 \
+  --deepspeed_config_file ds_config.json \
+  scripts/train.py \
+  --wandb_project evo1_metaworld \
+  --run_name Evo1_metaworld_stage2 \
+  --disable_gradient_checkpointing \
+  --action_head flowmatching \
+  --use_augmentation \
+  --lr 1e-5 \
+  --dropout 0.2 \
+  --weight_decay 1e-3 \
+  --batch_size 16 \
+  --image_size 448 \
+  --max_steps 80000 \
+  --log_interval 10 \
+  --ckpt_interval 2500 \
+  --warmup_steps 1000 \
+  --grad_clip_norm 1.0 \
+  --num_layers 8 \
+  --horizon 50 \
+  --finetune_vlm \
+  --finetune_action_head \
+  --disable_wandb \
+  --prefetch_factor 2 \
+  --video_backend av \
+  --cache_dir /home/tmprithvi/Evo1_training_dataset/cache/metaworld \
+  --vlm_name OpenGVLab/InternVL3-1B \
+  --dataset_config_path dataset/metaworld_config.yaml \
+  --per_action_dim 24 \
+  --state_dim 24 \
+  --save_dir /home/tmprithvi/baseline/stage2 \
+  --resume \
+  --resume_pretrain \
+  --resume_path /home/tmprithvi/baseline/step_10000
+```
+
+### Resuming an Interrupted Stage 2 Run
+
+If training is interrupted mid-run (crash, preemption, etc.), do **NOT** use `--resume_pretrain`
+again — that would reset the step counter to 0 and discard all progress. Instead use:
+
+```bash
+accelerate launch \
+  --num_processes 1 \
+  --num_machines 1 \
+  --deepspeed_config_file ds_config.json \
+  scripts/train.py \
+  --wandb_project evo1_metaworld \
+  --run_name Evo1_metaworld_stage2 \
+  --disable_gradient_checkpointing \
+  --action_head flowmatching \
+  --use_augmentation \
+  --lr 1e-5 \
+  --dropout 0.2 \
+  --weight_decay 1e-3 \
+  --batch_size 16 \
+  --image_size 448 \
+  --max_steps 80000 \
+  --log_interval 10 \
+  --ckpt_interval 2500 \
+  --warmup_steps 1000 \
+  --grad_clip_norm 1.0 \
+  --num_layers 8 \
+  --horizon 50 \
+  --finetune_vlm \
+  --finetune_action_head \
+  --disable_wandb \
+  --prefetch_factor 2 \
+  --video_backend av \
+  --cache_dir /home/tmprithvi/Evo1_training_dataset/cache/metaworld \
+  --vlm_name OpenGVLab/InternVL3-1B \
+  --dataset_config_path dataset/metaworld_config.yaml \
+  --per_action_dim 24 \
+  --state_dim 24 \
+  --save_dir /home/tmprithvi/baseline/stage2 \
+  --resume \
+  --resume_path /home/tmprithvi/baseline/stage2/step_10000
+```
+
+Replace `step_XXXXX` with the latest checkpoint in `/home/tmprithvi/stage2/` — checkpoints are
+saved every 2500 steps. To find the latest:
+
+```bash
+ls -d /home/tmprithvi/stage2/step_*/ | sort -t_ -k2 -n | tail -1
+```
+
+Key differences from the initial launch:
+- `--resume_pretrain` is **removed** — preserves step counter and optimizer/scheduler state
+- `--resume_path` points to a **Stage 2** checkpoint, not the Stage 1 baseline
+
+### Key Flags Explained
+
+| Flag | Value | Why |
+|------|-------|-----|
+| `--finetune_vlm` | flag | Unfreeze VLM backbone; all parameters trainable |
+| `--finetune_action_head` | flag | Also train action head (both components unfrozen) |
+| `--resume_pretrain` | flag | Load weights from Stage 1 checkpoint, reset step to 0 |
+| `--resume` | flag | Must be set together with `--resume_path` |
+| `--resume_path` | `.../baseline/step_10000` | Stage 1 checkpoint used as weight initialization |
+| `--save_dir` | `/home/tmprithvi/stage2` | Separate output dir from Stage 1 |
+
+### Observed Performance (A100-SXM4-80GB)
+
+| Metric | Value |
+|--------|-------|
+| Throughput | ~0.70 it/s (~11 samples/s) |
+| GPU memory (peak) | ~12.19 GiB allocated / 14.14 GiB reserved |
+| Loss at step 10 | ~0.035 (low — initialized from trained Stage 1 weights) |
+| Estimated total time | ~32 hours for 80,000 steps |
+
+### Output Structure
+
+```
+/home/tmprithvi/stage2/
+├── train_log_<timestamp>.log     # Full training log
+├── best_checkpoint.pt            # Tracker for best checkpoint path
+├── step_2500/                    # Periodic checkpoint
+├── step_5000/                    # Periodic checkpoint
+├── ...
+├── step_80000/                   # Final checkpoint (or step_final/)
+└── wandb/
+    └── offline-run-<id>/         # W&B offline run data
+```
+
+### Syncing W&B After Training
+
+```bash
+wandb sync /home/tmprithvi/stage2/wandb/offline-run-*
+```
+
+### Known Issues / Gotchas
+
+1. **`--resume_pretrain` resets step to 0** — this is intentional for starting Stage 2 fresh
+   from Stage 1 weights, but will destroy in-progress Stage 2 training if misused on a resume.
+   Always check which command variant you're using before launching.
+
+2. **Higher GPU memory than Stage 1** — ~14 GiB reserved vs ~7.3 GiB in Stage 1 because VLM
+   gradients are now active. Still well within A100-SXM4-80GB limits.
+
+3. **Lower throughput than Stage 1** — ~0.70 it/s vs ~1.3 it/s because backprop now flows
+   through the full VLM backbone.
