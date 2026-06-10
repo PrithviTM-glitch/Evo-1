@@ -60,7 +60,7 @@ def get_checkpoints():
     stage2 = BASELINE_DIR / "stage2"
     if stage2.is_dir():
         for d in sorted(stage2.iterdir()):
-            if d.is_dir() and not d.name.startswith("."):
+            if d.is_dir() and d.name.startswith("step"):
                 ckpts.append((f"stage2_{d.name}", str(d)))
     else:
         print(f"[WARN] stage2 dir not found: {stage2}")

@@ -29,7 +29,7 @@ def make_log_path(prefix="eval"):
 LOG_PATH = make_log_path("mt50")
 # ====================================================
 
-SHOW_WINDOW = True
+SHOW_WINDOW = False  # headless server — cv2.imshow aborts without a display
 SAVE_IMAGE = False
 SAVE_VIDEO = True  # save the video of each episode to disk
 

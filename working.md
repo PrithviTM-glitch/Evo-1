@@ -307,20 +307,20 @@ Uses three new files (originals untouched):
 Run from `/home/tmprithvi/Evo-1` (recommended: inside a `tmux` session):
 
 ```bash
-python MetaWorld_evaluation/eval_queue.py --parallel 3
+python3 MetaWorld_evaluation/eval_queue.py --parallel 3
 ```
 
 ### Common Variants
 
 ```bash
 # Run 4 evals in parallel
-python MetaWorld_evaluation/eval_queue.py --parallel 4
+python3 MetaWorld_evaluation/eval_queue.py --parallel 4
 
 # Custom port range (e.g. if 9000-9002 are in use)
-python MetaWorld_evaluation/eval_queue.py --parallel 3 --base_port 9100
+python3 MetaWorld_evaluation/eval_queue.py --parallel 3 --base_port 9100
 
 # Custom output directory
-python MetaWorld_evaluation/eval_queue.py --parallel 3 --out_root /tmp/eval_results
+python3 MetaWorld_evaluation/eval_queue.py --parallel 3 --out_root /tmp/eval_results
 ```
 
 ### What Gets Evaluated
@@ -351,7 +351,7 @@ MetaWorld_evaluation/eval_outputs/
 ```bash
 # Terminal 1 — start server
 cd /home/tmprithvi/Evo-1/Evo_1/scripts
-python Evo1_server_eval.py \
+python3 Evo1_server_eval.py \
   --ckpt_dir /home/tmprithvi/baseline/step_5000 \
   --port 9000 \
   --arm_key metaworld_sawyer \
@@ -359,7 +359,7 @@ python Evo1_server_eval.py \
 
 # Terminal 2 — start client (once server prints "running at ws://0.0.0.0:9000")
 cd /home/tmprithvi/Evo-1/MetaWorld_evaluation
-python mt50_evo1_client_eval.py \
+python3 mt50_evo1_client_eval.py \
   --port 9000 \
   --out_dir /tmp/eval_baseline_step5000
 ```
@@ -373,3 +373,26 @@ python mt50_evo1_client_eval.py \
 | `--out_root` | `MetaWorld_evaluation/eval_outputs` | Root dir for all per-checkpoint outputs |
 | `--arm_key` | `metaworld_sawyer` | Arm key in `norm_stats.json` |
 | `--dataset_key` | `Evo1_MetaWorld` | Dataset key in `norm_stats.json` |
+
+### Known Issues / Gotchas
+
+1. **Use `python3`, not `python`** — the environment does not have a bare `python` symlink in
+   `$PATH`. All eval scripts must be invoked with `python3`. Running with `python` produces
+   `command not found` and exits silently.
+
+2. **`SHOW_WINDOW = False` is required on headless servers** — `mt50_evo1_client_eval.py` had
+   `SHOW_WINDOW = True` which caused `cv2.imshow()` to trigger a Qt display lookup on every
+   rendered frame. Without a `$DISPLAY`, OpenCV calls `abort()` at the C level, killing the
+   client process with SIGABRT (`exit=-6`). The `except Exception` block in the code does NOT
+   catch this. Fixed 2026-06-10: line 32 now reads `SHOW_WINDOW = False`.
+   MuJoCo offscreen rendering via `MUJOCO_GL=egl` is already configured and works correctly.
+
+3. **`eval_queue.py` checkpoint filter must match only `step_*` dirs** — the original
+   `get_checkpoints()` used `not d.name.startswith(".")` for the stage2 subdirectory filter,
+   which caused `wandb/`, `logs/`, and similar non-checkpoint directories to be picked up and
+   scheduled as fake checkpoints. Fixed 2026-06-10: filter changed to `d.name.startswith("step")`.
+
+4. **`client.log` will always be empty** — the client writes all output through `log_write()`
+   which appends to a timestamped file under `logs/` (e.g. `logs/mt50_YYYYMMDD_HHMMSS.txt`),
+   not to stdout/stderr. The `client.log` captured by the orchestrator will remain 0 bytes.
+   Check `logs/*.txt` inside each checkpoint output dir for real progress and results.

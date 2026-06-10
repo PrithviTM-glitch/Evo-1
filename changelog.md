@@ -61,3 +61,31 @@
   - `--arm_key` / `--dataset_key` — forwarded to each server instance
 - Each checkpoint writes to its own subdirectory under `--out_root` (`baseline_step_5000/`,
   `stage2_step_10000/`, etc.) containing `server.log`, `client.log`, `logs/`, `episode_videos/`.
+
+## [Unreleased] — 2026-06-10 (bugfixes)
+
+### Fixed
+
+#### `MetaWorld_evaluation/mt50_evo1_client_eval.py`
+
+- **`SHOW_WINDOW = True` caused SIGABRT on headless servers**
+  - `render_single_bgr()` called `cv2.imshow()` every frame, which caused OpenCV's Qt backend
+    to attempt loading the `xcb` platform plugin. On a headless server with no `$DISPLAY`,
+    this triggered an OS-level `abort()` (signal 6 / SIGABRT), killing the client process
+    immediately with `exit=-6`.
+  - The `except Exception: pass` guard around `cv2.imshow()` provided **no protection** because
+    SIGABRT is raised at the C library level — it never surfaces as a Python exception.
+  - **Fix:** Changed `SHOW_WINDOW = True` → `SHOW_WINDOW = False` (line 32) with comment
+    `# headless server — cv2.imshow aborts without a display`.
+  - Note: `MUJOCO_GL=egl` (already set via `os.environ.setdefault`) provides correct offscreen
+    rendering on this machine — no Xvfb needed.
+
+#### `MetaWorld_evaluation/eval_queue.py`
+
+- **Checkpoint discovery included non-checkpoint directories (e.g. `wandb/`)**
+  - `get_checkpoints()` iterated all subdirectories under `baseline/stage2/` using
+    `not d.name.startswith(".")` as the only filter. The `wandb/` directory passes that test,
+    gets scheduled as a fake checkpoint, and wastes a server slot (server startup times out
+    after 180 s or fails to load the directory as a model).
+  - **Fix:** Changed filter from `not d.name.startswith(".")` to `d.name.startswith("step")`,
+    so only valid checkpoint directories (`step_2500`, `step_5000`, …, `step_best`) are picked up.
