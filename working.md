@@ -286,3 +286,90 @@ wandb sync /home/tmprithvi/stage2/wandb/offline-run-*
 
 3. **Lower throughput than Stage 1** — ~0.70 it/s vs ~1.3 it/s because backprop now flows
    through the full VLM backbone.
+
+---
+
+## Parallel MetaWorld Evaluation
+
+### Overview
+
+Evaluates multiple checkpoints (baseline stage 1 + all stage 2) against MT50 MetaWorld tasks
+in parallel. Each evaluation spins up its own server instance on a separate port, so N checkpoints
+run simultaneously with the rest queued.
+
+Uses three new files (originals untouched):
+- `Evo_1/scripts/Evo1_server_eval.py` — server with CLI args + correct checkpoint loading
+- `MetaWorld_evaluation/mt50_evo1_client_eval.py` — client with CLI args for port + output dir
+- `MetaWorld_evaluation/eval_queue.py` — queue orchestrator
+
+### Launch Command
+
+Run from `/home/tmprithvi/Evo-1` (recommended: inside a `tmux` session):
+
+```bash
+python MetaWorld_evaluation/eval_queue.py --parallel 3
+```
+
+### Common Variants
+
+```bash
+# Run 4 evals in parallel
+python MetaWorld_evaluation/eval_queue.py --parallel 4
+
+# Custom port range (e.g. if 9000-9002 are in use)
+python MetaWorld_evaluation/eval_queue.py --parallel 3 --base_port 9100
+
+# Custom output directory
+python MetaWorld_evaluation/eval_queue.py --parallel 3 --out_root /tmp/eval_results
+```
+
+### What Gets Evaluated
+
+| Name | Checkpoint Path |
+|------|----------------|
+| `baseline_step_5000` | `/home/tmprithvi/baseline/step_5000` |
+| `baseline_step_10000` | `/home/tmprithvi/baseline/step_10000` |
+| `stage2_step_2500` … `stage2_step_best` | `/home/tmprithvi/baseline/stage2/step_*` |
+
+### Output Structure
+
+```
+MetaWorld_evaluation/eval_outputs/
+├── baseline_step_5000/
+│   ├── server.log          # Server stdout/stderr
+│   ├── client.log          # Client stdout/stderr
+│   ├── logs/               # mt50_YYYYMMDD_HHMMSS.txt (per-task success rates)
+│   └── episode_videos/     # task##_<slug>_ep###.mp4
+├── baseline_step_10000/
+│   └── ...
+└── stage2_step_*/
+    └── ...
+```
+
+### Running a Single Evaluation Manually
+
+```bash
+# Terminal 1 — start server
+cd /home/tmprithvi/Evo-1/Evo_1/scripts
+python Evo1_server_eval.py \
+  --ckpt_dir /home/tmprithvi/baseline/step_5000 \
+  --port 9000 \
+  --arm_key metaworld_sawyer \
+  --dataset_key Evo1_MetaWorld
+
+# Terminal 2 — start client (once server prints "running at ws://0.0.0.0:9000")
+cd /home/tmprithvi/Evo-1/MetaWorld_evaluation
+python mt50_evo1_client_eval.py \
+  --port 9000 \
+  --out_dir /tmp/eval_baseline_step5000
+```
+
+### Key Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--parallel` | `3` | Number of simultaneous evaluations |
+| `--base_port` | `9000` | First port; slot `i` uses `base_port + i` |
+| `--out_root` | `MetaWorld_evaluation/eval_outputs` | Root dir for all per-checkpoint outputs |
+| `--arm_key` | `metaworld_sawyer` | Arm key in `norm_stats.json` |
+| `--dataset_key` | `Evo1_MetaWorld` | Dataset key in `norm_stats.json` |
