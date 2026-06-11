@@ -48,13 +48,13 @@ def get_checkpoints():
     """Return list of (name, abs_path) for all target checkpoints."""
     ckpts = []
 
-    # baseline step_5000 and step_10000 only
-    for step in ["step_5000", "step_10000"]:
-        p = BASELINE_DIR / step
-        if p.is_dir():
-            ckpts.append((f"baseline_{step}", str(p)))
-        else:
-            print(f"[WARN] Not found, skipping: {p}")
+    # baseline step_5000 and step_10000 (disabled — stage2 only for now)
+    # for step in ["step_5000", "step_10000"]:
+    #     p = BASELINE_DIR / step
+    #     if p.is_dir():
+    #         ckpts.append((f"baseline_{step}", str(p)))
+    #     else:
+    #         print(f"[WARN] Not found, skipping: {p}")
 
     # all subdirs under stage2
     stage2 = BASELINE_DIR / "stage2"
