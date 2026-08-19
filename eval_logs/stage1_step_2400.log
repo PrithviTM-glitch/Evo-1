@@ -1,0 +1,44 @@
+[INFO] Loaded order from mt50_order.json (len=50)
+[INFO] Metaworld Evaluation Begins ...
+
+----- stderr -----
+Traceback (most recent call last):
+  File "/content/Evo-1/MetaWorld_evaluation/mt50_evo1_client_prompt.py", line 485, in <module>
+    asyncio.run(_amain())
+  File "/usr/lib/python3.12/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/content/Evo-1/MetaWorld_evaluation/mt50_evo1_client_prompt.py", line 441, in _amain
+    per_task, per_group, overall = await eval_mt50_with_groups(
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/content/Evo-1/MetaWorld_evaluation/mt50_evo1_client_prompt.py", line 326, in eval_mt50_with_groups
+    async with websockets.connect(server_url, max_size=100_000_000) as ws:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/websockets/asyncio/client.py", line 587, in __aenter__
+    return await self
+           ^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/websockets/asyncio/client.py", line 541, in __await_impl__
+    self.connection = await self.create_connection()
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/websockets/asyncio/client.py", line 467, in create_connection
+    _, connection = await loop.create_connection(factory, **kwargs)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/base_events.py", line 1132, in create_connection
+    raise exceptions[0]
+  File "/usr/lib/python3.12/asyncio/base_events.py", line 1107, in create_connection
+    sock = await self._connect_sock(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/base_events.py", line 1010, in _connect_sock
+    await self.sock_connect(sock, address)
+  File "/usr/lib/python3.12/asyncio/selector_events.py", line 651, in sock_connect
+    return await fut
+           ^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/selector_events.py", line 691, in _sock_connect_cb
+    raise OSError(err, f'Connect call failed {address}')
+ConnectionRefusedError: [Errno 111] Connect call failed ('127.0.0.1', 9000)
